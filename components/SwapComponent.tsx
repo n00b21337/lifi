@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { createConfig, EVM, getQuote, convertQuoteToRoute, executeRoute, RouteExtended } from '@lifi/sdk';
+import { createConfig, EVM, getRoutes, convertQuoteToRoute, executeRoute, RouteExtended } from '@lifi/sdk';
 import { createWalletClient, http } from 'viem';
 import { privateKeyToAccount } from 'viem/accounts';
 import { arbitrum, mainnet, optimism, polygon, scroll, Chain } from 'viem/chains';
@@ -25,7 +25,7 @@ if (PRIVATE_KEY.length !== 66) {
   throw new Error('Private key must be 64 characters long after the 0x prefix.');
 }
 
-// Set up the account using the private key
+// Set up the account using the private key, VIEM asks for it to be 66 chars long and use 0x, privateKeyToAccount is VIEM function
 const account = privateKeyToAccount(PRIVATE_KEY);
 const walletAddress = account.address; 
 
@@ -77,34 +77,33 @@ const fromTokens = [
 
 // Fixed Chain and Token
 const toChain = { id: 100, name: 'Gnosis' };
-const toToken = { address: '0xe91d153e0b41518a2ce8dd3d7944fa863463a97d', name: 'xDAI' };
+const toToken = { address: '0xdbf3ea6f5bee45c02255b2c26a16f300502f68da', name: 'xBZZ' };
 
 // Define the type for the execution result state
 type ExecutionResultType = RouteExtended | { error: string } | null;
 
 const SwapComponent = () => {
   const [fromChain, setFromChain] = useState(fromChains[0].id);
-  const [fromToken, setFromToken] = useState(fromTokens[0].address);
+  const [fromToken, setFromToken] = useState(fromTokens[2].address);
   const [fromAmount, setFromAmount] = useState('10000000'); // 10 USDC by default
   const [fromAddress, setFromAddress] = useState(walletAddress); 
   const [executionResult, setExecutionResult] = useState<ExecutionResultType>(null);
 
   const handleSwap = async () => {
     try {
-      const quoteRequest = {
-        fromChain,
-        toChain: toChain.id,
-        fromToken,
-        toToken: toToken.address,
+      const settings = {
+        fromChainId: fromChain,
+        toChainId: toChain.id,
+        fromTokenAddress: fromToken,
+        toTokenAddress: toToken.address,
         fromAmount,
         fromAddress,
       };
 
-      const quote = await getQuote(quoteRequest);
-      console.log('Quote:', quote);
+      const result = await getRoutes(settings);
+      console.log('Results:', result);
 
-      const route = convertQuoteToRoute(quote);
-      console.log('Route:', route);
+      const route = result.routes[0]
 
       const executedRoute = await executeRoute(route, {
         updateRouteHook(route) {
