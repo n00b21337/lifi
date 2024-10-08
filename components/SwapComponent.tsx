@@ -1,6 +1,8 @@
 "use client";
 
 // try https://github.com/lifinance/sdk/blob/main/examples/node/examples/polynomialDeposit.ts
+// Can also use direct API https://docs.li.fi/li.fi-api/li.fi-api/requesting-a-quote/cross-chain-contract-calls
+
 
 import { useEffect, useState } from 'react';
 import { getRoutes, RoutesRequest } from '@lifi/sdk';
