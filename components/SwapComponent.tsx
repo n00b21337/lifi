@@ -33,8 +33,6 @@ const run = async () => {
   try {
     const privateKey = process.env.PRIVATE_KEY as Address
 
-    // NOTE: Here we are using the private key to get the account,
-    // but you can also use a Mnemonic account - see https://viem.sh/docs/accounts/mnemonic
     const account = privateKeyToAccount(privateKey)
 
     const client = createWalletClient({
@@ -71,7 +69,7 @@ const run = async () => {
       fromChain: ChainId.ARB,
       toChain: ChainId.DAI,
       fromToken: findDefaultToken(CoinKey.USDCe, ChainId.ARB).address,
-      amount: '100000000000000', // BZZ amount to be sent to buy this batch?
+      amount: '100000000000000', // BZZ amount that we want to have used in contract
       swarmContractAddress: '0x45a1502382541Cd610CC9068e88727426b696293', // PostageStamp on Gnosis
       swarmToken: '0x45a1502382541Cd610CC9068e88727426b696293', // xBZZ on Gnosis
       swarmContractGasLimit: '1000000',
