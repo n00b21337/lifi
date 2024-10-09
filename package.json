@@ -9,13 +9,18 @@
     "lint": "next lint"
   },
   "dependencies": {
-    "@lifi/sdk": "^3.1.5",
+    "@lifi/sdk": "^3.2.3",
+    "@rainbow-me/rainbowkit": "^2.1.7",
+    "@tanstack/react-query": "^5.59.3",
+    "crypto": "^1.0.1",
     "dotenv": "^16.4.5",
-    "ethers": "^6.13.2",
+    "ethers": "^6.13.3",
     "next": "14.2.8",
     "react": "^18",
     "react-dom": "^18",
-    "styled-components": "^6.1.13"
+    "styled-components": "^6.1.13",
+    "viem": "^2.21.19",
+    "wagmi": "^2.12.17"
   },
   "devDependencies": {
     "@types/node": "^20",
