@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createConfig, EVM, getRoutes, convertQuoteToRoute, executeRoute, RouteExtended } from '@lifi/sdk';
 import { createWalletClient, http, custom, WalletClient } from 'viem';
-import { arbitrum, mainnet, optimism, polygon, scroll, Chain } from 'viem/chains';
+import { arbitrum, mainnet, optimism, base, Chain } from 'viem/chains';
 import './SwapComponent.css';
+import { tokenAddresses } from './utils/tokenAddresses'; 
 
 declare global {
   interface Window {
@@ -12,11 +13,12 @@ declare global {
   }
 }
 
-const SwapComponent = () => {
+
+const SwapComponent: React.FC = () => {
   const [walletAddress, setWalletAddress] = useState('');
   const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
-  const [fromChain, setFromChain] = useState(1); // Default: Ethereum
-  const [fromToken, setFromToken] = useState('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'); // Default: WETH
+  const [selectedChainId, setSelectedChainId] = useState(1); // Default: Ethereum
+  const [fromToken, setFromToken] = useState('');
   const [fromAmount, setFromAmount] = useState('10000000'); // Default: 10 USDC
   const [executionResult, setExecutionResult] = useState<RouteExtended | { error: string } | null>(null);
 
@@ -25,6 +27,13 @@ const SwapComponent = () => {
       initializeWalletClient();
     }
   }, [walletAddress]);
+
+  useEffect(() => {
+    // Set default token when chain changes
+    if (tokenAddresses[selectedChainId]) {
+      setFromToken(tokenAddresses[selectedChainId].WETH);
+    }
+  }, [selectedChainId]);
 
   const initializeWalletClient = async () => {
     if (typeof window !== 'undefined' && window.ethereum) {
@@ -41,7 +50,8 @@ const SwapComponent = () => {
           EVM({
             getWalletClient: async () => client,
             switchChain: async (chainId) => {
-              const newChain = [arbitrum, mainnet, optimism, polygon, scroll].find((chain) => chain.id === chainId) as Chain;
+              const chainMap = { 1: mainnet, 42161: arbitrum, 10: optimism, 8453: base };
+              const newChain = chainMap[chainId as keyof typeof chainMap] || mainnet;
               await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
                 params: [{ chainId: `0x${chainId.toString(16)}` }],
@@ -82,10 +92,10 @@ const SwapComponent = () => {
 
     try {
       const settings = {
-        fromChainId: fromChain,
-        toChainId: 10,
+        fromChainId: selectedChainId,
+        toChainId: 10, // Default to Optimism, you might want to make this configurable
         fromTokenAddress: fromToken,
-        toTokenAddress: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', // DAI
+        toTokenAddress: '0xdbf3ea6f5bee45c02255b2c26a16f300502f68da', // DAI on Optimism, you might want to make this configurable
         fromAmount,
         fromAddress: walletAddress,
       };
@@ -112,13 +122,11 @@ const SwapComponent = () => {
       setExecutionResult({ error: 'Execution failed. Check console for details.' });
     }
   };
-  
 
   return (
     <div className="container">
       <h1 className="title">Token Swap</h1>
 
-      {/* Wallet Connection */}
       <button onClick={connectWallet} className="button">
         {walletAddress ? `Connected: ${walletAddress}` : 'Connect Wallet'}
       </button>
@@ -126,14 +134,14 @@ const SwapComponent = () => {
       <label className="label">From Chain:</label>
       <select
         className="select"
-        value={fromChain}
-        onChange={(e) => setFromChain(Number(e.target.value))}
+        value={selectedChainId}
+        onChange={(e) => setSelectedChainId(Number(e.target.value))}
       >
-        <option value="1">Ethereum</option>
-        <option value="42161">Arbitrum</option>
-        <option value="10">Optimism</option>
-        <option value="8453">Base</option>
-        <option value="42220">Celo</option>
+        {Object.entries(tokenAddresses).map(([chainId, chainData]) => (
+          <option key={chainId} value={chainId}>
+            {chainData.name}
+          </option>
+        ))}
       </select>
 
       <label className="label">From Token:</label>
@@ -142,10 +150,16 @@ const SwapComponent = () => {
         value={fromToken}
         onChange={(e) => setFromToken(e.target.value)}
       >
-        <option value="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2">WETH</option>
-        <option value="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48">USDC</option>
-        <option value="0xdAC17F958D2ee523a2206206994597C13D831ec7">USDT</option>
-        <option value="0x6B175474E89094C44Da98b954EedeAC495271d0F">DAI</option>
+        {Object.entries(tokenAddresses[selectedChainId]).map(([tokenSymbol, address]) => {
+          if (tokenSymbol !== 'name') {
+            return (
+              <option key={tokenSymbol} value={address as string}>
+                {tokenSymbol}
+              </option>
+            );
+          }
+          return null;
+        })}
       </select>
 
       <label className="label">Amount:</label>
@@ -168,7 +182,6 @@ const SwapComponent = () => {
         Execute Swap
       </button>
 
-      {/* Result Box */}
       {executionResult && (
         <pre className="result-box">{JSON.stringify(executionResult, null, 2)}</pre>
       )}
