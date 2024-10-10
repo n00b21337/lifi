@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { createConfig, EVM, getRoutes, convertQuoteToRoute, executeRoute, RouteExtended } from '@lifi/sdk';
-import { createWalletClient, getAccount, http } from 'viem';
+import { createWalletClient, http, custom, WalletClient } from 'viem';
 import { arbitrum, mainnet, optimism, polygon, scroll, Chain } from 'viem/chains';
 import './SwapComponent.css';
 
@@ -12,9 +12,9 @@ declare global {
   }
 }
 
-
 const SwapComponent = () => {
   const [walletAddress, setWalletAddress] = useState('');
+  const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
   const [fromChain, setFromChain] = useState(1); // Default: Ethereum
   const [fromToken, setFromToken] = useState('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'); // Default: WETH
   const [fromAmount, setFromAmount] = useState('10000000'); // Default: 10 USDC
@@ -22,39 +22,48 @@ const SwapComponent = () => {
 
   useEffect(() => {
     if (walletAddress) {
+      initializeWalletClient();
+    }
+  }, [walletAddress]);
+
+  const initializeWalletClient = async () => {
+    if (typeof window !== 'undefined' && window.ethereum) {
       const client = createWalletClient({
-        account: { address: walletAddress }, // Ensure walletAddress is used correctly
-        chain: mainnet, // Use the appropriate chain
-        transport: http(),
+        account: walletAddress as `0x${string}`,
+        chain: mainnet,
+        transport: custom(window.ethereum)
       });
-  
+      setWalletClient(client);
+
       createConfig({
         integrator: 'Swarm',
         providers: [
           EVM({
             getWalletClient: async () => client,
             switchChain: async (chainId) => {
-              const newClient = createWalletClient({
-                account: { address: walletAddress }, // Pass the wallet address here too
-                chain: [arbitrum, mainnet, optimism, polygon, scroll].find((chain) => chain.id === chainId) as Chain,
-                transport: http(),
+              const newChain = [arbitrum, mainnet, optimism, polygon, scroll].find((chain) => chain.id === chainId) as Chain;
+              await window.ethereum.request({
+                method: 'wallet_switchEthereumChain',
+                params: [{ chainId: `0x${chainId.toString(16)}` }],
               });
+              const newClient = createWalletClient({
+                account: walletAddress as `0x${string}`,
+                chain: newChain,
+                transport: custom(window.ethereum)
+              });
+              setWalletClient(newClient);
               return newClient;
             },
           }),
         ],
       });
     }
-  }, [walletAddress]);
+  };
 
-  // MetaMask connection logic using viem
   const connectWallet = async () => {
     if (typeof window !== 'undefined' && window.ethereum) {
       try {
-        // Request accounts from MetaMask
         const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-  
-        // Use the first account returned by MetaMask ??
         setWalletAddress(accounts[0]);
         console.log('Connected Wallet Address:', accounts[0]);
       } catch (error) {
@@ -64,10 +73,13 @@ const SwapComponent = () => {
       console.log('MetaMask is not installed.');
     }
   };
-  
-  
 
   const handleSwap = async () => {
+    if (!walletClient) {
+      console.error('Wallet client not initialized');
+      return;
+    }
+
     try {
       const settings = {
         fromChainId: fromChain,
@@ -81,23 +93,26 @@ const SwapComponent = () => {
       const result = await getRoutes(settings);
       console.log('Results:', result);
 
-      console.log('Results:', result);
+      if (result.routes && result.routes.length > 0) {
+        const route = result.routes[0];
 
-      // Execute the swap (optional, commented out)
-      const route = result.routes[0];
-      const executedRoute = await executeRoute(route, {
-        // Gets called once the route object gets new updates
-        updateRouteHook(route) {
-          console.log(route)
-        },
-      });
-      setExecutionResult(executedRoute);
+        const executedRoute = await executeRoute(route, {
+          updateRouteHook: (updatedRoute) => {
+            console.log('Updated Route:', updatedRoute);
+          },
+        });
 
+        console.log('Executed Route:', executedRoute);
+        setExecutionResult(executedRoute);
+      } else {
+        console.error('No routes available');
+      }
     } catch (error) {
       console.error('An error occurred:', error);
       setExecutionResult({ error: 'Execution failed. Check console for details.' });
     }
   };
+  
 
   return (
     <div className="container">
