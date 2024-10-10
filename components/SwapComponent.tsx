@@ -2,118 +2,97 @@
 
 import { useState, useEffect } from 'react';
 import { createConfig, EVM, getRoutes, convertQuoteToRoute, executeRoute, RouteExtended } from '@lifi/sdk';
-import { createWalletClient, http } from 'viem';
-import { privateKeyToAccount } from 'viem/accounts';
+import { createWalletClient, getAccount, http } from 'viem';
 import { arbitrum, mainnet, optimism, polygon, scroll, Chain } from 'viem/chains';
-import 'dotenv/config';
 import './SwapComponent.css';
 
-
-// Retrieve and format the private key from environment variables
-const PRIVATE_KEY = process.env.NEXT_PUBLIC_PRIVATE_KEY?.trim(); // Ensure it's properly trimmed
-
-// Validate that the private key is defined and correctly formatted
-if (!PRIVATE_KEY) {
-  throw new Error('Private key is not defined. Please set it in the .env file.');
+declare global {
+  interface Window {
+    ethereum: any;
+  }
 }
 
-if (!PRIVATE_KEY.startsWith('0x')) {
-  throw new Error('Private key must start with 0x.');
-}
-
-if (PRIVATE_KEY.length !== 66) {
-  throw new Error('Private key must be 64 characters long after the 0x prefix.');
-}
-
-// Set up the account using the private key, VIEM asks for it to be 66 chars long and use 0x, privateKeyToAccount is VIEM function
-const account = privateKeyToAccount(PRIVATE_KEY);
-const walletAddress = account.address; 
-
-// Define the chains you will interact with
-const chains = [arbitrum, mainnet, optimism, polygon, scroll];
-
-// Create the initial wallet client with the mainnet chain
-const client = createWalletClient({
-  account,
-  chain: mainnet,
-  transport: http(),
-});
-
-// Configure the LiFi SDK with the EVM provider using the created wallet client
-createConfig({
-  integrator: 'Swarm', // Replace with your dApp or company name
-  providers: [
-    EVM({
-      getWalletClient: async () => client,
-      switchChain: async (chainId) => {
-        // Switch chain by creating a new wallet client with the appropriate chain
-        const newClient = createWalletClient({
-          account,
-          chain: chains.find((chain) => chain.id === chainId) as Chain,
-          transport: http(),
-        });
-        return newClient;
-      },
-    }),
-  ],
-});
-
-// Chains and Tokens
-const fromChains = [
-  { id: 1, name: 'Ethereum' },
-  { id: 42161, name: 'Arbitrum' },
-  { id: 10, name: 'Optimism' },
-  { id: 8453, name: 'Base' },
-  { id: 42220, name: 'Celo' },
-];
-
-const fromTokens = [
-  { address: '0x2260FAC5E5542a773Aa44fBCfeDf7C193bc2C599', name: 'WBTC' },
-  { address: '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2', name: 'WETH' },
-  { address: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48', name: 'USDC' },
-  { address: '0xdAC17F958D2ee523a2206206994597C13D831ec7', name: 'USDT' },
-  { address: '0x6B175474E89094C44Da98b954EedeAC495271d0F', name: 'DAI' },
-];
-
-// Fixed Chain and Token
-const toChain = { id: 100, name: 'Gnosis' };
-const toToken = { address: '0xdbf3ea6f5bee45c02255b2c26a16f300502f68da', name: 'xBZZ' };
-const toToken2 = { address: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', name: 'DAI' };
-
-// Define the type for the execution result state
-type ExecutionResultType = RouteExtended | { error: string } | null;
 
 const SwapComponent = () => {
-  const [fromChain, setFromChain] = useState(fromChains[0].id);
-  const [fromToken, setFromToken] = useState(fromTokens[2].address);
-  const [fromAmount, setFromAmount] = useState('10000000'); // 10 USDC by default
-  const [fromAddress, setFromAddress] = useState(walletAddress); 
-  const [executionResult, setExecutionResult] = useState<ExecutionResultType>(null);
+  const [walletAddress, setWalletAddress] = useState('');
+  const [fromChain, setFromChain] = useState(1); // Default: Ethereum
+  const [fromToken, setFromToken] = useState('0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'); // Default: WETH
+  const [fromAmount, setFromAmount] = useState('10000000'); // Default: 10 USDC
+  const [executionResult, setExecutionResult] = useState<RouteExtended | { error: string } | null>(null);
+
+  useEffect(() => {
+    if (walletAddress) {
+      const client = createWalletClient({
+        account: { address: walletAddress }, // Ensure walletAddress is used correctly
+        chain: mainnet, // Use the appropriate chain
+        transport: http(),
+      });
+  
+      createConfig({
+        integrator: 'Swarm',
+        providers: [
+          EVM({
+            getWalletClient: async () => client,
+            switchChain: async (chainId) => {
+              const newClient = createWalletClient({
+                account: { address: walletAddress }, // Pass the wallet address here too
+                chain: [arbitrum, mainnet, optimism, polygon, scroll].find((chain) => chain.id === chainId) as Chain,
+                transport: http(),
+              });
+              return newClient;
+            },
+          }),
+        ],
+      });
+    }
+  }, [walletAddress]);
+
+  // MetaMask connection logic using viem
+  const connectWallet = async () => {
+    if (typeof window !== 'undefined' && window.ethereum) {
+      try {
+        // Request accounts from MetaMask
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+  
+        // Use the first account returned by MetaMask ??
+        setWalletAddress(accounts[0]);
+        console.log('Connected Wallet Address:', accounts[0]);
+      } catch (error) {
+        console.error('Error connecting to wallet:', error);
+      }
+    } else {
+      console.log('MetaMask is not installed.');
+    }
+  };
+  
+  
 
   const handleSwap = async () => {
     try {
       const settings = {
-        fromChainId: 1,
+        fromChainId: fromChain,
         toChainId: 10,
         fromTokenAddress: fromToken,
-        toTokenAddress: toToken2.address,
+        toTokenAddress: '0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1', // DAI
         fromAmount,
-        fromAddress: '0xF44D804DCf86Da1236B58e4F48B5b004B19b1695',
+        fromAddress: walletAddress,
       };
 
       const result = await getRoutes(settings);
       console.log('Results:', result);
 
-      // const route = result.routes[0]
+      console.log('Results:', result);
 
-      // const executedRoute = await executeRoute(route, {
-      //   updateRouteHook(route) {
-      //     console.log('Updated Route:', route);
-      //   },
-      // });
+      // Execute the swap (optional, commented out)
+      const route = result.routes[0];
+      const executedRoute = await executeRoute(route, {
+        // Gets called once the route object gets new updates
+        updateRouteHook(route) {
+          console.log(route)
+        },
+      });
+      setExecutionResult(executedRoute);
 
-      // console.log('Executed Route:', executedRoute);
-      // setExecutionResult(executedRoute);
     } catch (error) {
       console.error('An error occurred:', error);
       setExecutionResult({ error: 'Execution failed. Check console for details.' });
@@ -124,17 +103,22 @@ const SwapComponent = () => {
     <div className="container">
       <h1 className="title">Token Swap</h1>
 
+      {/* Wallet Connection */}
+      <button onClick={connectWallet} className="button">
+        {walletAddress ? `Connected: ${walletAddress}` : 'Connect Wallet'}
+      </button>
+
       <label className="label">From Chain:</label>
       <select
         className="select"
         value={fromChain}
         onChange={(e) => setFromChain(Number(e.target.value))}
       >
-        {fromChains.map((chain) => (
-          <option key={chain.id} value={chain.id}>
-            {chain.name}
-          </option>
-        ))}
+        <option value="1">Ethereum</option>
+        <option value="42161">Arbitrum</option>
+        <option value="10">Optimism</option>
+        <option value="8453">Base</option>
+        <option value="42220">Celo</option>
       </select>
 
       <label className="label">From Token:</label>
@@ -143,11 +127,10 @@ const SwapComponent = () => {
         value={fromToken}
         onChange={(e) => setFromToken(e.target.value)}
       >
-        {fromTokens.map((token) => (
-          <option key={token.address} value={token.address}>
-            {token.name}
-          </option>
-        ))}
+        <option value="0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2">WETH</option>
+        <option value="0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48">USDC</option>
+        <option value="0xdAC17F958D2ee523a2206206994597C13D831ec7">USDT</option>
+        <option value="0x6B175474E89094C44Da98b954EedeAC495271d0F">DAI</option>
       </select>
 
       <label className="label">Amount:</label>
@@ -162,19 +145,13 @@ const SwapComponent = () => {
       <input
         className="input"
         type="text"
-        value={fromAddress}
-        onChange={(e) => setFromAddress(e.target.value)}
+        value={walletAddress}
+        disabled
       />
 
       <button className="button" onClick={handleSwap}>
         Execute Swap
       </button>
-
-      <label className="label">To Chain:</label>
-      <p>{toChain.name}</p> {/* Display fixed Gnosis chain */}
-
-      <label className="label">To Token:</label>
-      <p>{toToken.name}</p> {/* Display fixed xDAI token */}
 
       {/* Result Box */}
       {executionResult && (
