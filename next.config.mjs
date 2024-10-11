@@ -1,11 +1,4 @@
-// next.config.mjs
-
 /** @type {import('next').NextConfig} */
-const nextConfig = {
-    // Enable styled-components support
-    compiler: {
-        styledComponents: true,
-    },
-};
+const nextConfig = {};
 
 export default nextConfig;
