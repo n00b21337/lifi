@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createConfig, EVM, getRoutes, convertQuoteToRoute, executeRoute, RouteExtended } from '@lifi/sdk';
 import { createWalletClient, http, custom, WalletClient } from 'viem';
-import { arbitrum, mainnet, optimism, base, Chain } from 'viem/chains';
+import { arbitrum, mainnet, optimism, base, gnosis, Chain } from 'viem/chains';
 import './SwapComponent.css';
 import { tokenAddresses } from './utils/tokenAddresses'; 
 
@@ -13,13 +13,12 @@ declare global {
   }
 }
 
-
 const SwapComponent: React.FC = () => {
   const [walletAddress, setWalletAddress] = useState('');
   const [walletClient, setWalletClient] = useState<WalletClient | null>(null);
   const [selectedChainId, setSelectedChainId] = useState(1); // Default: Ethereum
   const [fromToken, setFromToken] = useState('');
-  const [fromAmount, setFromAmount] = useState('10000000'); // Default: 10 USDC
+  const [fromAmount, setFromAmount] = useState('10'); // Default: 10 tokens
   const [executionResult, setExecutionResult] = useState<RouteExtended | { error: string } | null>(null);
 
   useEffect(() => {
@@ -31,7 +30,7 @@ const SwapComponent: React.FC = () => {
   useEffect(() => {
     // Set default token when chain changes
     if (tokenAddresses[selectedChainId]) {
-      setFromToken(tokenAddresses[selectedChainId].WETH);
+      setFromToken(tokenAddresses[selectedChainId].WETH.address);
     }
   }, [selectedChainId]);
 
@@ -50,7 +49,7 @@ const SwapComponent: React.FC = () => {
           EVM({
             getWalletClient: async () => client,
             switchChain: async (chainId) => {
-              const chainMap = { 1: mainnet, 42161: arbitrum, 10: optimism, 8453: base };
+              const chainMap = { 1: mainnet, 42161: arbitrum, 10: optimism, 8453: base, 100: gnosis };
               const newChain = chainMap[chainId as keyof typeof chainMap] || mainnet;
               await window.ethereum.request({
                 method: 'wallet_switchEthereumChain',
@@ -91,17 +90,28 @@ const SwapComponent: React.FC = () => {
     }
 
     try {
+      // Find the selected token's decimals
+      const selectedToken = Object.values(tokenAddresses[selectedChainId]).find(
+        token => token.address === fromToken
+      );
+
+      if (!selectedToken) {
+        throw new Error('Selected token not found');
+      }
+
+      // Calculate the amount with decimals
+      const amountWithDecimals = (Number(fromAmount) * 10 ** selectedToken.decimals).toString();
+
       const settings = {
         fromChainId: selectedChainId,
-        toChainId: 10, // Default to Optimism, you might want to make this configurable
+        toChainId: 100, // Default to Gnosis
         fromTokenAddress: fromToken,
-        toTokenAddress: '0xdbf3ea6f5bee45c02255b2c26a16f300502f68da', // DAI on Optimism, you might want to make this configurable
-        fromAmount,
+        toTokenAddress: '0xdbf3ea6f5bee45c02255b2c26a16f300502f68da', // xBZZ on Gnosis
+        fromAmount: amountWithDecimals,
         fromAddress: walletAddress,
       };
 
       const result = await getRoutes(settings);
-      console.log('Results:', result);
 
       if (result.routes && result.routes.length > 0) {
         const route = result.routes[0];
@@ -116,6 +126,7 @@ const SwapComponent: React.FC = () => {
         setExecutionResult(executedRoute);
       } else {
         console.error('No routes available');
+        setExecutionResult({ error: 'No routes available' });
       }
     } catch (error) {
       console.error('An error occurred:', error);
@@ -150,10 +161,10 @@ const SwapComponent: React.FC = () => {
         value={fromToken}
         onChange={(e) => setFromToken(e.target.value)}
       >
-        {Object.entries(tokenAddresses[selectedChainId]).map(([tokenSymbol, address]) => {
+        {Object.entries(tokenAddresses[selectedChainId]).map(([tokenSymbol, tokenData]) => {
           if (tokenSymbol !== 'name') {
             return (
-              <option key={tokenSymbol} value={address as string}>
+              <option key={tokenSymbol} value={tokenData.address}>
                 {tokenSymbol}
               </option>
             );
