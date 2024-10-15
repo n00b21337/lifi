@@ -1,11 +1,22 @@
-'use client';
+"use client";
 
-import React, { useState, useEffect } from 'react';
-import { useAccount, useChainId, usePublicClient, useWalletClient, useSwitchChain } from 'wagmi';
-import { createConfig, EVM, getRoutes, executeRoute, RouteExtended } from '@lifi/sdk';
-import { mainnet, arbitrum, optimism, base, gnosis } from 'wagmi/chains';
-import { tokenAddresses } from './tokenAddresses';
-import styles from './SwapComponent.module.css';
+import React, { useState, useEffect } from "react";
+import {
+  useAccount,
+  useChainId,
+  usePublicClient,
+  useWalletClient,
+  useSwitchChain,
+} from "wagmi";
+import {
+  createConfig,
+  EVM,
+  getRoutes,
+  executeRoute,
+  RouteExtended,
+} from "@lifi/sdk";
+import { tokenAddresses } from "./tokenAddresses";
+import styles from "./SwapComponent.module.css";
 
 const SwapComponent: React.FC = () => {
   const { address, isConnected } = useAccount();
@@ -15,11 +26,20 @@ const SwapComponent: React.FC = () => {
   const { data: walletClient } = useWalletClient();
 
   const [selectedChainId, setSelectedChainId] = useState(1);
-  const [fromToken, setFromToken] = useState('');
-  const [fromAmount, setFromAmount] = useState('10');
-  const [executionResult, setExecutionResult] = useState<RouteExtended | { error: string } | null>(null);
+  const [fromToken, setFromToken] = useState("");
+  const [fromAmount, setFromAmount] = useState("10");
+  const [executionResult, setExecutionResult] = useState<
+    RouteExtended | { error: string } | null
+  >(null);
   const [lifiConfigInitialized, setLifiConfigInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [showAddress, setShowAddress] = useState(false);
+  const [isClientConnected, setIsClientConnected] = useState(false);
+
+  useEffect(() => {
+    setShowAddress(true);
+    setIsClientConnected(isConnected);
+  }, [isConnected]);
 
   useEffect(() => {
     if (chainId) {
@@ -28,8 +48,8 @@ const SwapComponent: React.FC = () => {
   }, [chainId]);
 
   useEffect(() => {
-    if (tokenAddresses[selectedChainId]) {
-      setFromToken(tokenAddresses[selectedChainId].WETH.address);
+    if ((tokenAddresses as any)[selectedChainId]) {
+      setFromToken((tokenAddresses as any)[selectedChainId].WETH.address);
     }
   }, [selectedChainId]);
 
@@ -41,7 +61,7 @@ const SwapComponent: React.FC = () => {
 
   const initializeLiFi = () => {
     createConfig({
-      integrator: 'Swarm',
+      integrator: "Swarm",
       providers: [
         EVM({
           getProvider: async () => publicClient,
@@ -60,27 +80,30 @@ const SwapComponent: React.FC = () => {
 
   const handleSwap = async () => {
     if (!isConnected || !address || !publicClient || !walletClient) {
-      console.error('Wallet not connected or clients not available');
+      console.error("Wallet not connected or clients not available");
       return;
     }
 
     setIsLoading(true);
     try {
-      const selectedToken = Object.values(tokenAddresses[selectedChainId]).find(
-        token => token.address === fromToken
-      );
+      const selectedToken = Object.values(
+        (tokenAddresses as any)[selectedChainId]
+      ).find((token: any) => token.address === fromToken);
 
       if (!selectedToken) {
-        throw new Error('Selected token not found');
+        throw new Error("Selected token not found");
       }
 
-      const amountWithDecimals = (Number(fromAmount) * 10 ** selectedToken.decimals).toString();
+      const amountWithDecimals = (
+        Number(fromAmount) *
+        10 ** selectedToken.decimals
+      ).toString();
 
       const settings = {
         fromChainId: selectedChainId,
         toChainId: 100,
         fromTokenAddress: fromToken,
-        toTokenAddress: '0xdbf3ea6f5bee45c02255b2c26a16f300502f68da',
+        toTokenAddress: "0xdbf3ea6f5bee45c02255b2c26a16f300502f68da",
         fromAmount: amountWithDecimals,
         fromAddress: address,
       };
@@ -92,19 +115,21 @@ const SwapComponent: React.FC = () => {
 
         const executedRoute = await executeRoute(route, {
           updateRouteHook: (updatedRoute) => {
-            console.log('Updated Route:', updatedRoute);
+            console.log("Updated Route:", updatedRoute);
           },
         });
 
-        console.log('Executed Route:', executedRoute);
+        console.log("Executed Route:", executedRoute);
         setExecutionResult(executedRoute);
       } else {
-        console.error('No routes available');
-        setExecutionResult({ error: 'No routes available' });
+        console.error("No routes available");
+        setExecutionResult({ error: "No routes available" });
       }
     } catch (error) {
-      console.error('An error occurred:', error);
-      setExecutionResult({ error: 'Execution failed. Check console for details.' });
+      console.error("An error occurred:", error);
+      setExecutionResult({
+        error: "Execution failed. Check console for details.",
+      });
     } finally {
       setIsLoading(false);
     }
@@ -114,7 +139,10 @@ const SwapComponent: React.FC = () => {
     <div className={styles.container}>
       <h1 className={styles.title}>Token Swap</h1>
 
-      <p className={styles.address}>Connected Address: {address || 'Not connected'}</p>
+      <p className={styles.address}>
+        Connected Address:{" "}
+        {showAddress ? address || "Not connected" : "Loading..."}
+      </p>
 
       <div className={styles.inputGroup}>
         <label className={styles.label}>From Chain:</label>
@@ -142,16 +170,18 @@ const SwapComponent: React.FC = () => {
           value={fromToken}
           onChange={(e) => setFromToken(e.target.value)}
         >
-          {Object.entries(tokenAddresses[selectedChainId]).map(([tokenSymbol, tokenData]) => {
-            if (tokenSymbol !== 'name') {
-              return (
-                <option key={tokenSymbol} value={tokenData.address}>
-                  {tokenSymbol}
-                </option>
-              );
+          {Object.entries((tokenAddresses as any)[selectedChainId]).map(
+            ([tokenSymbol, tokenData]: [string, any]) => {
+              if (tokenSymbol !== "name" && typeof tokenData === "object") {
+                return (
+                  <option key={tokenSymbol} value={tokenData.address}>
+                    {tokenSymbol}
+                  </option>
+                );
+              }
+              return null;
             }
-            return null;
-          })}
+          )}
         </select>
       </div>
 
@@ -165,15 +195,32 @@ const SwapComponent: React.FC = () => {
         />
       </div>
 
-      <button className={styles.button} onClick={handleSwap} disabled={!isConnected || isLoading}>
-        {isLoading ? <div className={styles.spinner}></div> : 'Execute Swap'}
+      <button
+        className={styles.button}
+        onClick={handleSwap}
+        disabled={!isClientConnected || isLoading}
+      >
+        {isLoading ? <div>Loading...</div> : "Execute Swap"}
       </button>
-
       {executionResult && (
-        <pre className={styles.resultBox}>{JSON.stringify(executionResult, null, 2)}</pre>
+        <pre className={styles.resultBox}>
+          {JSON.stringify(executionResult, null, 2)}
+        </pre>
       )}
 
-      {isLoading && <div className={styles.overlay}><div className={styles.spinner}></div></div>}
+      <pre className={styles.noticeBox}>
+        * All tokens will be converted to xBZZ on Gnosis Chain by default.{" "}
+      </pre>
+      <pre className={styles.noticeBox}>
+        * If messaged "no routes available", this usually means there is not
+        enough liquidity for the swap, need to try lower amount
+      </pre>
+
+      {isLoading && (
+        <div className={styles.overlay}>
+          <div className={styles.spinner}></div>
+        </div>
+      )}
     </div>
   );
 };
