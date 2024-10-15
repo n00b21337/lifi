@@ -11,12 +11,17 @@ import {
 import {
   createConfig,
   EVM,
-  getRoutes,
+  getContractCallsQuote,
+  ContractCallsQuoteRequest,
+  convertQuoteToRoute,
   executeRoute,
-  RouteExtended,
+  ChainId,
+  CoinKey,
 } from "@lifi/sdk";
 import { tokenAddresses } from "./tokenAddresses";
 import styles from "./SwapComponent.module.css";
+import { parseAbi, encodeFunctionData } from "viem";
+import { randomBytes } from "crypto";
 
 const SwapComponent: React.FC = () => {
   const { address, isConnected } = useAccount();
@@ -25,16 +30,29 @@ const SwapComponent: React.FC = () => {
   const publicClient = usePublicClient();
   const { data: walletClient } = useWalletClient();
 
-  const [selectedChainId, setSelectedChainId] = useState(1);
+  const [selectedChainId, setSelectedChainId] = useState(ChainId.ETH);
   const [fromToken, setFromToken] = useState("");
-  const [fromAmount, setFromAmount] = useState("10");
-  const [executionResult, setExecutionResult] = useState<
-    RouteExtended | { error: string } | null
-  >(null);
+  const [fromAmount, setFromAmount] = useState("1");
+  const [executionResult, setExecutionResult] = useState<any | null>(null);
   const [lifiConfigInitialized, setLifiConfigInitialized] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [showAddress, setShowAddress] = useState(false);
   const [isClientConnected, setIsClientConnected] = useState(false);
+
+  // Swarm-specific configuration
+  const [swarmConfig, setSwarmConfig] = useState({
+    toChain: ChainId.DAI,
+    swarmContractAddress: "0x45a1502382541Cd610CC9068e88727426b696293",
+    swarmToken: "0xdbf3ea6f5bee45c02255b2c26a16f300502f68da",
+    swarmContractGasLimit: "1000000",
+    swarmContractAbi: [
+      "function createBatch(address _owner, uint256 _initialBalancePerChunk, uint8 _depth, uint8 _bucketDepth, bytes32 _nonce, bool _immutable) external",
+    ],
+    swarmBatchInitialBalance: "477774720",
+    swarmBatchDepth: "20",
+    swarmBatchBucketDepth: "16",
+    swarmBatchImmutable: false,
+  });
 
   useEffect(() => {
     setShowAddress(true);
@@ -94,37 +112,57 @@ const SwapComponent: React.FC = () => {
         throw new Error("Selected token not found");
       }
 
-      const amountWithDecimals = (
-        Number(fromAmount) *
-        10 ** selectedToken.decimals
-      ).toString();
+      const amountWithDecimals = (Number(fromAmount) * 10 ** 16).toString(); // 16 decimals for xBZZ
 
-      const settings = {
-        fromChainId: selectedChainId,
-        toChainId: 100,
-        fromTokenAddress: fromToken,
-        toTokenAddress: "0xdbf3ea6f5bee45c02255b2c26a16f300502f68da",
-        fromAmount: amountWithDecimals,
+      const stakeTxData = encodeFunctionData({
+        abi: parseAbi(swarmConfig.swarmContractAbi),
+        functionName: "createBatch",
+        args: [
+          address,
+          swarmConfig.swarmBatchInitialBalance,
+          swarmConfig.swarmBatchDepth,
+          swarmConfig.swarmBatchBucketDepth,
+          "0x" + randomBytes(32).toString("hex"),
+          swarmConfig.swarmBatchImmutable,
+        ],
+      });
+
+      const contractCallsQuoteRequest: ContractCallsQuoteRequest = {
+        fromChain: selectedChainId,
+        fromToken: fromToken,
         fromAddress: address,
+        toChain: swarmConfig.toChain,
+        toToken: swarmConfig.swarmToken,
+        toAmount: amountWithDecimals, // Amount of BZZ to get
+        contractCalls: [
+          {
+            fromAmount: amountWithDecimals, // how much will be sent to contract, should be full amount expected
+            fromTokenAddress: swarmConfig.swarmToken,
+            toContractAddress: swarmConfig.swarmContractAddress,
+            toContractCallData: stakeTxData,
+            toContractGasLimit: swarmConfig.swarmContractGasLimit,
+          },
+        ],
       };
 
-      const result = await getRoutes(settings);
+      console.info(">> Contract Calls Request", contractCallsQuoteRequest);
 
-      if (result.routes && result.routes.length > 0) {
-        const route = result.routes[0];
+      const contactCallsQuoteResponse = await getContractCallsQuote(
+        contractCallsQuoteRequest
+      );
+      console.info(">> Contract Calls Quote", contactCallsQuoteResponse);
 
-        const executedRoute = await executeRoute(route, {
-          updateRouteHook: (updatedRoute) => {
-            console.log("Updated Route:", updatedRoute);
-          },
-        });
+      const route = convertQuoteToRoute(contactCallsQuoteResponse);
 
-        console.log("Executed Route:", executedRoute);
-        setExecutionResult(executedRoute);
-      } else {
-        console.error("No routes available");
-        setExecutionResult({ error: "No routes available" });
-      }
+      const executedRoute = await executeRoute(route, {
+        updateRouteHook(route) {
+          console.log("Updated Route:", route);
+        },
+      });
+
+      console.info("Contract Call Quote:", contactCallsQuoteResponse);
+
+      setExecutionResult(executedRoute);
     } catch (error) {
       console.error("An error occurred:", error);
       setExecutionResult({
@@ -186,7 +224,7 @@ const SwapComponent: React.FC = () => {
       </div>
 
       <div className={styles.inputGroup}>
-        <label className={styles.label}>Amount:</label>
+        <label className={styles.label}>Amount of BZZ to get:</label>
         <input
           className={styles.input}
           type="text"

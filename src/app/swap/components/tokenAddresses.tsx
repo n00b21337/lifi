@@ -154,10 +154,10 @@ export const tokenAddresses = {
     CELO: {
       address: "0x471EcE3750Da237f93B8E339c536989b8978a438",
       decimals: 18,
-    }, // Assuming 18 decimals, please verify
-    USDe: {
-      address: "0xeEe2F2Ff9D32F42bCB490Ec2E3E9ec409e2D8Fc6",
-      decimals: 18,
-    }, // Assuming 18 decimals, please verify
+    },
+    xBZZ: {
+      address: "0xdbf3ea6f5bee45c02255b2c26a16f300502f68da",
+      decimals: 16,
+    },
   },
 };
