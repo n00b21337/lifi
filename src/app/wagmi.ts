@@ -4,7 +4,7 @@ import {
   base,
   mainnet,
   optimism,
-  polygon,
+  gnosis,
   sepolia,
 } from "wagmi/chains";
 
@@ -13,7 +13,7 @@ export const config = getDefaultConfig({
   projectId: "YOUR_PROJECT_ID",
   chains: [
     mainnet,
-    polygon,
+    gnosis,
     optimism,
     arbitrum,
     base,

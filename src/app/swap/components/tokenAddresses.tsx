@@ -74,8 +74,12 @@ export const tokenAddresses = {
       address: "0x4200000000000000000000000000000000000006",
       decimals: 18,
     },
-    USDC: {
+    USDCe: {
       address: "0x7F5c764cBc14f9669B88837ca1490cCa17c31607",
+      decimals: 6,
+    },
+    USDC: {
+      address: "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
       decimals: 6,
     },
     USDT: {
@@ -158,6 +162,10 @@ export const tokenAddresses = {
     xBZZ: {
       address: "0xdbf3ea6f5bee45c02255b2c26a16f300502f68da",
       decimals: 16,
+    },
+    GNO: {
+      address: "0x9C58BAcC331c9aa871AFD802DB6379a98e80CEdb",
+      decimals: 18,
     },
   },
 };
